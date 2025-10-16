@@ -26,7 +26,7 @@ export function Hero() {
               <Link href="/interview">Start Interview</Link>
             </Button>
             <Button asChild size="lg" variant="outline">
-              <Link href="/dashboard">Open Dashboard</Link>
+              <Link href="/practice">Practice</Link>
             </Button>
           </div>
         </div>

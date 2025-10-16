@@ -5,6 +5,7 @@ import { GeistMono } from "geist/font/mono"
 import { Analytics } from "@vercel/analytics/next"
 import { Suspense } from "react"
 import "./globals.css"
+import { BrandHeader } from "@/components/brand-header"
 
 export const metadata: Metadata = {
   title: "v0 App",
@@ -20,6 +21,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable} antialiased`}>
       <body className="font-sans bg-background text-foreground">
+        <BrandHeader/>
         <Suspense fallback={<div>Loading...</div>}>
           {children}
           <Analytics />

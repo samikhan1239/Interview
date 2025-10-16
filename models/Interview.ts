@@ -1,27 +1,18 @@
+export type InterviewStatus = "pending" | "in-progress" | "paused" | "completed"
+
 export interface Question {
   id: string
   text: string
   difficulty: "easy" | "medium" | "hard"
-  timeLimit: number // in seconds
+  timeLimit: number
   answer?: string
   score?: number
-  aiResponse?: string
+  correction?: string
+  feedback?: string
   answeredAt?: string
-}
-
-export interface Interview {
-  id: string
-  candidateId: string
-  questions: Question[]
-  currentQuestionIndex: number
-  totalScore: number
-  status: "not-started" | "in-progress" | "completed" | "paused"
-  startedAt?: string
-  completedAt?: string
-  pausedAt?: string
-  chatHistory: ChatMessage[]
-  createdAt: string
-  updatedAt: string
+  prompt?: string // For compatibility with ai.ts Question type
+  seconds?: number 
+   summary?: string;// For compatibility with ai.ts Question type
 }
 
 export interface ChatMessage {
@@ -30,7 +21,20 @@ export interface ChatMessage {
   content: string
   timestamp: string
   metadata?: {
-    questionId?: string
-    type?: "question" | "answer" | "info" | "score"
+    questionId: string
+    type: "answer" | "score" | "feedback" | "summary" | "correction" | "info"
   }
+}
+
+export interface Interview {
+  id: string
+  candidateId: string
+  questions: Question[]
+  currentQuestionIndex: number
+  totalScore: number
+  status: InterviewStatus
+  chatHistory: ChatMessage[]
+  startedAt: string
+  pausedAt?: string
+  completedAt?: string
 }

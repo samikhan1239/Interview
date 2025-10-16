@@ -24,7 +24,7 @@ export function BrandHeader() {
         </nav>
         <div className="flex items-center gap-2">
           <Button asChild variant="ghost" className="hidden md:inline-flex">
-            <Link href="/dashboard">Dashboard</Link>
+            <Link href="/practice">Practice</Link>
           </Button>
           <Button asChild>
             <Link href="/interview">Start Interview</Link>
