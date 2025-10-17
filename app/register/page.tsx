@@ -1,115 +1,144 @@
 "use client"
 
-import type React from "react"
-
-import { useState } from "react"
-import { useRouter } from "next/navigation"
-import Link from "next/link"
+import React, { useEffect, useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { authDB } from "@/lib/db"
-import { ArrowRight, UserPlus } from "lucide-react"
+import { Progress } from "@/components/ui/progress"
+import { ArrowLeft, Award, Target, Lightbulb } from "lucide-react"
+import { interviewDB } from "@/lib/storage"
+import { Interview } from "@/models/Interview"
+import { QuestionCard } from "@/components/QuestionCard"
 
-export default function RegisterPage() {
+export default function ResultsPage() {
   const router = useRouter()
-  const [name, setName] = useState("")
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
-  const [error, setError] = useState("")
+  const searchParams = useSearchParams()
+  const [interview, setInterview] = useState<Interview | null>(null)
 
-  const handleRegister = (e: React.FormEvent) => {
-    e.preventDefault()
-    setError("")
-
-    if (!name || !email || !password) {
-      setError("Please fill in all fields")
+  useEffect(() => {
+    const interviewId = searchParams.get("interviewId")
+    if (!interviewId) {
+      router.push("/dashboard")
       return
     }
 
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters")
-      return
-    }
-
-    const user = authDB.register(email, name)
-    if (user) {
-      try {
-        localStorage.setItem("ia:user", JSON.stringify({ name, email }))
-      } catch {}
-      router.push("/interview")
+    const interviewData = interviewDB.getById(interviewId)
+    if (interviewData) {
+      setInterview(interviewData)
     } else {
-      setError("Registration failed")
+      router.push("/dashboard")
     }
+  }, [router, searchParams])
+
+  if (!interview) {
+    return (
+      <main className="min-h-dvh flex items-center justify-center bg-background">
+        <div className="text-center">
+          <div className="animate-pulse">
+            <div className="h-8 w-48 bg-muted rounded mx-auto mb-4"></div>
+            <div className="h-4 w-32 bg-muted rounded mx-auto"></div>
+          </div>
+        </div>
+      </main>
+    )
   }
 
+  const averageScore = interview.totalScore
+  const totalQuestions = interview.questions.length
+
+  // Derive AI Insights from corrections, enhanced for fallback
+  const aiInsights = interview.questions
+    .map((q) => q.correction || "No correction provided")
+    .filter((correction) => correction !== "No correction provided")
+    .map((correction) => {
+      if (correction.includes("professional with relevant experience")) {
+        return "Improved: Emphasized professional background and experience in a concise format.";
+      }
+      const keyPoints = correction.split(". ").filter((s) => s.trim());
+      return keyPoints.length > 0 ? `Improved: ${keyPoints[0]}.` : "General improvement in clarity.";
+    })
+    .join(" ");
+
   return (
-    <main className="min-h-screen flex items-center justify-center bg-muted/30 px-4">
-      <div className="absolute inset-0 -z-10 overflow-hidden">
-        <div className="absolute top-1/3 right-1/3 size-96 rounded-full bg-primary/5 blur-3xl animate-pulse" />
-        <div className="absolute bottom-1/3 left-1/3 size-96 rounded-full bg-accent/10 blur-3xl animate-pulse [animation-delay:1.5s]" />
+    <main className="min-h-dvh bg-background">
+      <div className="bg-gradient-to-br from-primary/10 via-background to-accent/10">
+        <section className="container mx-auto px-4 py-12 md:py-16">
+          <div className="max-w-4xl mx-auto">
+            <Button
+              variant="ghost"
+              onClick={() => router.push("/dashboard")}
+              className="mb-6 -ml-2"
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to Dashboard
+            </Button>
+            
+            <div className="text-center mb-8">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-4">
+                <Award className="h-8 w-8 text-primary" />
+              </div>
+              <h1 className="text-4xl md:text-5xl font-bold mb-2">Practice Results</h1>
+            </div>
+
+            <Card className="shadow-xl border-border/50 mb-8">
+              <CardHeader className="text-center pb-4">
+                <CardTitle className="text-2xl">Your Performance</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid md:grid-cols-2 gap-6 mb-6">
+                  <div className="text-center p-6 rounded-lg bg-muted/30">
+                    <div className="flex items-center justify-center mb-2">
+                      <Target className="h-5 w-5 text-primary mr-2" />
+                      <p className="text-sm font-medium text-muted-foreground">Overall Score</p>
+                    </div>
+                    <p className="text-4xl font-bold text-primary">{averageScore}%</p>
+                  </div>
+                  <div className="text-center p-6 rounded-lg bg-muted/30">
+                    <p className="text-sm font-medium text-muted-foreground mb-2">Questions Completed</p>
+                    <p className="text-4xl font-bold text-foreground">{totalQuestions}</p>
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Progress</span>
+                    <span className="font-semibold">{averageScore}%</span>
+                  </div>
+                  <Progress value={averageScore} className="h-3" />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* AI Insights Section */}
+            {aiInsights && (
+              <Card className="shadow-xl border-border/50 mb-8">
+                <CardHeader className="text-center pb-4">
+                  <CardTitle className="text-2xl flex items-center justify-center gap-2">
+                    <Lightbulb className="h-6 w-6 text-accent" />
+                    AI Insights
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-foreground text-center">
+                    Based on your responses, Gemini suggests the following improvements: {aiInsights}
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </section>
       </div>
 
-      <Card className="w-full max-w-md shadow-xl border-border/50">
-        <CardHeader className="space-y-2 text-center">
-          <div className="mx-auto mb-2 flex size-12 items-center justify-center rounded-xl bg-primary/10">
-            <UserPlus className="size-6 text-primary" />
+      <section className="container mx-auto px-4 pb-16">
+        <div className="max-w-4xl mx-auto">
+          <h2 className="text-2xl font-bold mb-6">Question Breakdown</h2>
+          <div className="space-y-6">
+            {interview.questions.map((question, index) => (
+              <QuestionCard key={question.id} question={question} index={index} />
+            ))}
           </div>
-          <CardTitle className="text-2xl font-bold">Create Account</CardTitle>
-          <CardDescription className="text-base">Get started with your AI-powered interview</CardDescription>
-        </CardHeader>
-        <form onSubmit={handleRegister}>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Full Name</Label>
-              <Input
-                id="name"
-                type="text"
-                placeholder="John Doe"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="h-11"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="h-11"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="h-11"
-              />
-            </div>
-            {error && <p className="text-sm text-destructive">{error}</p>}
-          </CardContent>
-          <CardFooter className="flex flex-col gap-4">
-            <Button type="submit" className="w-full h-11 group" size="lg">
-              Create Account
-              <ArrowRight className="ml-2 size-4 transition-transform group-hover:translate-x-1" />
-            </Button>
-            <p className="text-sm text-center text-muted-foreground">
-              Already have an account?{" "}
-              <Link href="/login" className="text-primary hover:underline font-medium">
-                Sign in
-              </Link>
-            </p>
-          </CardFooter>
-        </form>
-      </Card>
+        </div>
+      </section>
     </main>
   )
 }

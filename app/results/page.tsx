@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
-import { ArrowLeft, Award, Target } from "lucide-react"
+import { ArrowLeft, Award, Target, Lightbulb } from "lucide-react" // Added Lightbulb for AI Insights
 import { interviewDB } from "@/lib/storage"
 import { Interview } from "@/models/Interview"
 import { QuestionCard } from "@/components/QuestionCard"
@@ -45,6 +45,16 @@ export default function ResultsPage() {
 
   const averageScore = interview.totalScore
   const totalQuestions = interview.questions.length
+
+  // Derive AI Insights from corrections
+  const aiInsights = interview.questions
+    .map((q) => q.correction || "No correction provided")
+    .filter((correction) => correction !== "No correction provided")
+    .map((correction) => {
+      const keyPoints = correction.split(". ").filter((s) => s.trim());
+      return keyPoints.length > 0 ? `Improved: ${keyPoints[0]}.` : "General improvement in clarity.";
+    })
+    .join(" ");
 
   return (
     <main className="min-h-dvh bg-background">
@@ -95,6 +105,9 @@ export default function ResultsPage() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* New AI Insights Section */}
+           
           </div>
         </section>
       </div>

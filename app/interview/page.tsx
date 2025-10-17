@@ -22,8 +22,8 @@ interface ExtractedData {
   rawText: string
 }
 
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "YOUR_API_KEY_HERE")
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" })
+const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "AIzaSyAnNRnbzEInFMjAwMiPDiAJnXB-T0bGmzI")
+const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" })
 
 export default function InterviewPage() {
   const router = useRouter()

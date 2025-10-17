@@ -24,6 +24,13 @@ export const QuestionCard = ({ question, index }: QuestionCardProps) => {
     }
   }
 
+  // Derive a detailed insight from correction, enhanced for fallback
+  const insight = question.correction
+    ? question.correction.includes("professional with relevant experience")
+      ? "Key improvement: Structured response to highlight professional skills and experience."
+      : `Key improvement: ${question.correction.split(". ")[0]}.`
+    : "No specific improvement suggested.";
+
   return (
     <Card className="overflow-hidden transition-all hover:shadow-lg">
       <CardHeader className="bg-muted/30">
@@ -61,6 +68,12 @@ export const QuestionCard = ({ question, index }: QuestionCardProps) => {
             <p className="text-sm text-foreground">{question.feedback}</p>
           </div>
         )}
+
+        {/* AI Insight Section */}
+        <div className="border-l-4 border-accent/50 pl-4 py-2 bg-accent/5 rounded">
+          <h4 className="font-semibold text-sm text-accent/70 mb-1">AI Insight</h4>
+          <p className="text-sm text-foreground">{insight}</p>
+        </div>
       </CardContent>
     </Card>
   )

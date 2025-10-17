@@ -64,9 +64,9 @@ export default function PracticePage() {
     const prompt = `Generate a concise summary of the following answer: "${answer}". The summary should be 2-3 sentences.`;
     try {
       const genAI = new (await import("@google/generative-ai")).GoogleGenerativeAI(
-        process.env.GOOGLE_AI_API_KEY || "YOUR_API_KEY_HERE"
+        process.env.GOOGLE_AI_API_KEY || "AIzaSyAnNRnbzEInFMjAwMiPDiAJnXB-T0bGmzI"
       )
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" })
+      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" })
       const result = await model.generateContent(prompt)
       const response = await result.response
       return response.text()
@@ -123,104 +123,99 @@ export default function PracticePage() {
     setIsPaused(false)
     if (currentQuestion) speakQuestion(currentQuestion)
   }
+const handleNextQuestion = async () => {
+  if (!interview || isSpeaking || !answer) return;
+  setLoading(true);
+  setIsRecording(false); // Stop recording before processing
 
-  const handleNextQuestion = async () => {
-    if (!interview || isSpeaking || !answer) return
-    setLoading(true)
-    setIsRecording(false) // Stop recording before processing
-
-    let aiResponse
-    try {
-      aiResponse = await correctAndSummarizeAnswer(
-        interview.questions[interview.currentQuestionIndex].text,
-        answer
-      )
-    } catch (error) {
-      console.error("AI correction failed:", error, "Question:", interview.questions[interview.currentQuestionIndex].text, "Answer:", answer)
-      setError("Failed to process your answer due to an AI service issue. Please try again or provide a clearer answer.")
-      setLoading(false)
-      return
-    }
-
-    const { correction, summary } = aiResponse
-    const answerSummary = await generateSummary(answer)
-    setSummary(answerSummary)
-
-    const updatedQuestions = [...interview.questions]
-    updatedQuestions[interview.currentQuestionIndex] = {
-      ...updatedQuestions[interview.currentQuestionIndex],
-      answer,
-      correction,
-      summary,
-      answeredAt: new Date().toISOString(),
-    }
-
-    const chatMessage: ChatMessage = {
-      id: generateId(),
-      role: "user",
-      content: answer,
-      timestamp: new Date().toISOString(),
-      metadata: { questionId: interview.questions[interview.currentQuestionIndex].id, type: "answer" },
-    }
-    const aiChatMessage: ChatMessage = {
-      id: generateId(),
-      role: "assistant",
-      content: summary,
-      timestamp: new Date().toISOString(),
-      metadata: { questionId: interview.questions[interview.currentQuestionIndex].id, type: "summary" },
-    }
-    const correctionChatMessage: ChatMessage = {
-      id: generateId(),
-      role: "assistant",
-      content: correction,
-      timestamp: new Date().toISOString(),
-      metadata: { questionId: interview.questions[interview.currentQuestionIndex].id, type: "correction" },
-    }
-    const summaryChatMessage: ChatMessage = {
-      id: generateId(),
-      role: "system",
-      content: answerSummary,
-      timestamp: new Date().toISOString(),
-      metadata: { questionId: interview.questions[interview.currentQuestionIndex].id, type: "summary" },
-    }
-
-    const nextIndex = interview.currentQuestionIndex + 1
-    const newTotalScore = interview.totalScore
-
-    const updatedInterview: Interview = {
-      ...interview,
-      questions: updatedQuestions,
-      currentQuestionIndex: nextIndex,
-      totalScore: newTotalScore,
-      status: nextIndex < interview.questions.length ? "in-progress" : "completed",
-      chatHistory: [...interview.chatHistory, chatMessage, aiChatMessage, correctionChatMessage, summaryChatMessage],
-      completedAt: nextIndex >= interview.questions.length ? new Date().toISOString() : undefined,
-    }
-    interviewDB.update(interview.id, updatedInterview)
-    setInterview(updatedInterview)
-
-    candidateDB.update(interview.candidateId, {
-      score: newTotalScore,
-      status: nextIndex < interview.questions.length ? "in-progress" : "completed",
-    })
-
-    if (nextIndex < interview.questions.length) {
-      setCurrentQuestion(updatedInterview.questions[nextIndex].text)
-      setAnswer("")
-      setSummary("")
-      setRecordedChunks([])
-      speakQuestion(updatedInterview.questions[nextIndex].text)
-    }
-    setLoading(false)
+  let aiResponse;
+  try {
+    aiResponse = await correctAndSummarizeAnswer(
+      interview.questions[interview.currentQuestionIndex].text,
+      answer
+    );
+  } catch (error) {
+    console.error(
+      "AI correction failed:",
+      error,
+      "Question:",
+      interview.questions[interview.currentQuestionIndex].text,
+      "Answer:",
+      answer
+    );
+    setError(
+      "Failed to process your answer due to an AI service issue. Please try again or provide a clearer answer."
+    );
+    setLoading(false);
+    return;
   }
+
+  const { correction, summary } = aiResponse;
+
+  const updatedQuestions = [...interview.questions];
+  updatedQuestions[interview.currentQuestionIndex] = {
+    ...updatedQuestions[interview.currentQuestionIndex],
+    answer,
+    correction,
+    summary, // Use the summary from correctAndSummarizeAnswer
+    answeredAt: new Date().toISOString(),
+  };
+
+  const chatMessage: ChatMessage = {
+    id: generateId(),
+    role: "user",
+    content: answer,
+    timestamp: new Date().toISOString(),
+    metadata: { questionId: interview.questions[interview.currentQuestionIndex].id, type: "answer" },
+  };
+  const aiChatMessage: ChatMessage = {
+    id: generateId(),
+    role: "assistant",
+    content: summary,
+    timestamp: new Date().toISOString(),
+    metadata: { questionId: interview.questions[interview.currentQuestionIndex].id, type: "summary" },
+  };
+  const correctionChatMessage: ChatMessage = {
+    id: generateId(),
+    role: "assistant",
+    content: correction,
+    timestamp: new Date().toISOString(),
+    metadata: { questionId: interview.questions[interview.currentQuestionIndex].id, type: "correction" },
+  };
+
+  const nextIndex = interview.currentQuestionIndex + 1;
+  const newTotalScore = interview.totalScore;
+
+  const updatedInterview: Interview = {
+    ...interview,
+    questions: updatedQuestions,
+    currentQuestionIndex: nextIndex,
+    totalScore: newTotalScore,
+    status: nextIndex < interview.questions.length ? "in-progress" : "completed",
+    chatHistory: [...interview.chatHistory, chatMessage, aiChatMessage, correctionChatMessage],
+    completedAt: nextIndex >= interview.questions.length ? new Date().toISOString() : undefined,
+  };
+  interviewDB.update(interview.id, updatedInterview);
+  setInterview(updatedInterview);
+
+  candidateDB.update(interview.candidateId, {
+    score: newTotalScore,
+    status: nextIndex < interview.questions.length ? "in-progress" : "completed",
+  });
+
+  if (nextIndex < interview.questions.length) {
+    setCurrentQuestion(updatedInterview.questions[nextIndex].text);
+    setAnswer("");
+    setSummary("");
+    setRecordedChunks([]);
+    speakQuestion(updatedInterview.questions[nextIndex].text);
+  }
+  setLoading(false);
+};
 
   const handleAddQuestion = (question: CustomQuestion) => {
-    const correctedQuestion = {
-      ...question,
-      text: question.text.replace(/full satck|full strike/gi, "full stack").trim(),
-    }
-    setCustomQuestions([...customQuestions, correctedQuestion])
-  }
+  setCustomQuestions([...customQuestions, question]);
+};
 
   return (
     <main className="min-h-screen w-full bg-gray-50 flex flex-col">

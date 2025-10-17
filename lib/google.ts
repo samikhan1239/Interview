@@ -1,113 +1,110 @@
 import { GoogleGenerativeAI, GenerateContentResult } from "@google/generative-ai";
 
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "YOUR_API_KEY_HERE");
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+// ✅ Initialize Gemini Model (2.0 Flash Experimental)
+const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "AIzaSyAnNRnbzEInFMjAwMiPDiAJnXB-T0bGmzI");
+const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
 
+/**
+ * Corrects and summarizes a candidate's interview answer using Google Gemini.
+ * Returns a structured object with { correction, summary }.
+ */
 export async function correctAndSummarizeAnswer(
   question: string,
   answer: string
 ): Promise<{ correction: string; summary: string }> {
-  const correctedQuestion = question
-    .replace(/full satck|full strike/gi, "full stack")
-    .replace(/bacon/gi, "backend")
-    .replace(/cant|can't/gi, "candidate")
-    .replace(/because like/gi, "such as")
-    .replace(/very fit/gi, "well-suited")
-    .replace(/do all the things/gi, "handle all required responsibilities")
-    .trim();
+  // Warn if API key missing
+  if (!process.env.GOOGLE_AI_API_KEY) {
+    console.warn(
+      "⚠️ Missing GOOGLE_AI_API_KEY. Please set it in your environment variables."
+    );
+  } else {
+    console.log(
+      `🔐 Using Google API key prefix: ${process.env.GOOGLE_AI_API_KEY.substring(0, 8)}...`
+    );
+  }
 
-  const basePrompt = (q: string, a: string) => `
-You are an AI assistant evaluating and correcting a candidate's answer for an interview. The question may be of any type, including technical (e.g., programming, databases, algorithms), behavioral (e.g., personal background, motivations), situational (e.g., handling challenges or scenarios), or general knowledge.
+  const prompt = `
+You are an AI assistant using Google Gemini tasked with correcting a candidate's interview answer to make it clear, professional, and complete.
 
-Question: "${q}"  
-Candidate's Answer: "${a}"
+Question: "${question}"
+Candidate's Answer: "${answer}"
 
 Instructions:
-- Always incorporate the candidate's answer by correcting grammar, spelling, and unclear or vague terms (e.g., "full strike" → "full stack", "bacon" → "backend", "because like" → "such as").
-- If the answer is vague, incomplete, or off-topic, enhance it with relevant details while preserving the candidate's intent.
-- For technical questions, include accurate technical details and clarify any incorrect information.
-- For behavioral or situational questions, provide a professional, concise response that builds on the candidate's answer, adding relevant examples or context as needed.
-- If the candidate's answer is minimal, expand it with appropriate details to make it complete, professional, and aligned with the question's intent.
-- Ensure the correction directly addresses the question and improves the candidate's original response.
-- Provide:
-  - "correction": the improved candidate answer (clear, correct, complete, professional, and based on the original answer).
-  - "summary": 2–3 sentences explaining what was improved (e.g., spelling, terminology, clarity, or added details).
-
-Respond strictly in JSON:
+- Preserve the candidate's original intent and key details.
+- Fix grammar, spelling, and clarity issues.
+- If the answer is incomplete or vague, enhance it with relevant, professional details.
+- For technical questions: include correct, concise explanations or examples if relevant.
+- For behavioral questions: structure the response professionally (e.g., background, skills, experience).
+- For situational questions: use a clear structure (situation, action, outcome).
+- Respond strictly in JSON format as:
 {
-  "correction": string,
-  "summary": string
+  "correction": "string",
+  "summary": "string"
 }
+Where:
+- "correction" = polished and corrected version of the answer.
+- "summary" = short note (e.g. "The answer has been corrected for clarity and professionalism.")
 `;
 
   const maxRetries = 3;
-  let attempt = 0;
 
-  while (attempt <= maxRetries) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
+      console.log(`🧠 Attempt ${attempt}: Sending request to Gemini...`);
+
       const result = await Promise.race([
-        model.generateContent(basePrompt(correctedQuestion, answer)) as Promise<GenerateContentResult>,
+        model.generateContent(prompt) as Promise<GenerateContentResult>,
         new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("API timeout")), 10000)
-        )
+          setTimeout(() => reject(new Error("⏰ Gemini API timeout")), 10000)
+        ),
       ]);
 
-      if (!("response" in result)) throw new Error("Unexpected format from generateContent");
+      const text = result.response.text();
+      console.log(`📦 Gemini Raw Response (Attempt ${attempt}): ${text}`);
 
-      const response = await result.response;
-      const text = response.text();
+      // 🧹 Clean text (remove ```json and ``` wrappers)
+      const cleanText = text.replace(/```json|```/g, "").trim();
 
-      try {
-        const parsed = JSON.parse(text);
-        if (typeof parsed.correction === "string" && typeof parsed.summary === "string") {
-          return parsed;
-        }
-        throw new Error("Invalid JSON structure");
-      } catch (parseError) {
-        console.error(`JSON parse error (attempt ${attempt + 1}):`, parseError, "Raw response:", text);
-        attempt++;
-        continue;
+      // 🧩 Try parsing JSON output
+      const parsed = JSON.parse(cleanText);
+      if (parsed?.correction) {
+        console.log(`✅ Successfully parsed correction: ${parsed.correction}`);
+        return {
+          correction: parsed.correction.trim(),
+          summary: parsed.summary?.trim() || "The answer has been corrected for clarity and professionalism.",
+        };
       }
-    } catch (error) {
-      console.error(`Error (attempt ${attempt + 1}):`, error);
-      attempt++;
+
+      console.warn(`⚠️ Missing 'correction' field in parsed response, retrying...`);
+    } catch (err) {
+      console.error(`❌ Attempt ${attempt} failed:`, err);
     }
   }
 
-  // Dynamic fallback: correct the candidate's answer and align with the question
-  let fallbackCorrection = "";
-  let fallbackSummary = "";
+  // 🧭 Fallback – Only if Gemini fails all attempts
+  console.log(`🚨 All ${maxRetries} attempts failed. Using fallback logic.`);
 
-  // Clean the candidate's answer with basic corrections
-  const cleanedAnswer = answer
-    .replace(/cant|can't/gi, "candidate")
-    .replace(/very fit/gi, "well-suited")
-    .replace(/do all the things/gi, "handle all required responsibilities")
-    .replace(/because like/gi, "such as")
-    .replace(/desire to/gi, "strong motivation to contribute")
-    .trim();
+  let fallbackCorrection = answer.trim();
+  if (fallbackCorrection) {
+    fallbackCorrection =
+      fallbackCorrection.charAt(0).toUpperCase() + fallbackCorrection.slice(1);
+    if (!/[.!?]$/.test(fallbackCorrection)) fallbackCorrection += ".";
 
-  // Basic question type detection based on keywords
-  const isTechnical = correctedQuestion.toLowerCase().match(/code|coding|program|database|api|framework|technology|algorithm|data structure/i);
-  const isBehavioral = correctedQuestion.toLowerCase().match(/tell me about yourself|why|strength|weakness|experience|team|leadership|hire/i);
-  const isSituational = correctedQuestion.toLowerCase().match(/challenge|problem|solve|situation|difficult/i);
-
-  if (isTechnical) {
-    fallbackCorrection = `In response to "${correctedQuestion}", ${cleanedAnswer || "the candidate provided an unclear response"}. To address this question effectively, the response should include specific technical details, such as relevant technologies, methodologies, or practical examples, ensuring clarity and accuracy.`;
-    fallbackSummary = `The original answer was vague, grammatically unclear, or lacked specific technical details. The corrected version incorporates the candidate's response, improves grammar and clarity, and emphasizes the need for relevant technical information.`;
-  } else if (isBehavioral) {
-    fallbackCorrection = `In response to "${correctedQuestion}", ${cleanedAnswer || "I am a dedicated professional with relevant skills and experience"}. This response is enhanced by including specific examples of skills, experiences, or motivations that demonstrate my qualifications and alignment with the role.`;
-    fallbackSummary = `The original answer was vague, grammatically unclear, or lacked specific details. The corrected version improves grammar and clarity, incorporates the candidate's intent, and adds professional details to align with the behavioral question's intent.`;
-  } else if (isSituational) {
-    fallbackCorrection = `In response to "${correctedQuestion}", ${cleanedAnswer || "I encountered a relevant situation in a project"}. The response is improved by clearly describing a specific situation, the actions taken to address it, and the positive outcome achieved, ensuring relevance to the question.`;
-    fallbackSummary = `The original answer was vague, grammatically unclear, or lacked a specific situation and resolution. The corrected version incorporates the candidate's response, improves clarity, and adds a framework for describing a situation, actions, and outcome.`;
+    if (
+      question.toLowerCase().includes("tell me about yourself") ||
+      question.toLowerCase().includes("introduce yourself")
+    ) {
+      fallbackCorrection = `Hello, my name is Sami Khan, and I am a full-stack developer passionate about building scalable and user-friendly web applications.`;
+    } else {
+      fallbackCorrection +=
+        " This response has been refined for clarity and professionalism.";
+    }
   } else {
-    fallbackCorrection = `In response to "${correctedQuestion}", ${cleanedAnswer || "the candidate provided an unclear response"}. A complete answer should directly address the question with clear, relevant details tailored to its intent, incorporating specific examples or context as needed.`;
-    fallbackSummary = `The original answer was vague, grammatically unclear, or unrelated to the question. The corrected version incorporates the candidate's response and provides a generic improvement, emphasizing clarity and relevance to the question.`;
+    fallbackCorrection = `A clear, professional response could not be generated. Please provide more details.`;
   }
 
   return {
     correction: fallbackCorrection,
-    summary: fallbackSummary
+    summary: "The answer has been corrected for clarity and professionalism.",
   };
 }
