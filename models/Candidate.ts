@@ -1,7 +1,16 @@
 import type { Interview } from "./Interview" // Assuming Interview is defined in a separate file
 
 export interface Candidate {
+
   id: string
+    scores?: {
+    total?: number
+    breakdown?: {
+      easy?: number
+      medium?: number
+      hard?: number
+    }
+  }
   name: string
   email: string
   phone: string

@@ -8,19 +8,23 @@ interface VideoCallProps {
   onError: (error: string) => void
 }
 
-export default function VideoCall({ interviewId, onError }: VideoCallProps) {
+export default function VideoCall({ onError }: VideoCallProps) {
   const [mainVideo, setMainVideo] = useState<"interviewer" | "user">("interviewer")
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [isMuted, setIsMuted] = useState(false)
   const [isVideoOn, setIsVideoOn] = useState(true)
-  const [isHoveringControls, setIsHoveringControls] = useState(false)
+
   const userVideoRef = useRef<HTMLVideoElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
+  // Initialize user media
   useEffect(() => {
+    let localStream: MediaStream | null = null
+
     navigator.mediaDevices
       .getUserMedia({ video: true, audio: true })
       .then((stream) => {
+        localStream = stream
         if (userVideoRef.current) {
           userVideoRef.current.srcObject = stream
         }
@@ -30,14 +34,13 @@ export default function VideoCall({ interviewId, onError }: VideoCallProps) {
       })
 
     return () => {
-      if (userVideoRef.current && userVideoRef.current.srcObject) {
-        const stream = userVideoRef.current.srcObject as MediaStream
-        stream.getTracks().forEach((track) => track.stop())
+      if (localStream) {
+        localStream.getTracks().forEach((track) => track.stop())
       }
     }
   }, [onError])
 
-  // Handle fullscreen changes
+  // Handle fullscreen state
   useEffect(() => {
     const handleFullscreenChange = () => {
       setIsFullscreen(!!document.fullscreenElement)
@@ -49,10 +52,12 @@ export default function VideoCall({ interviewId, onError }: VideoCallProps) {
   const toggleFullScreen = () => {
     if (!containerRef.current) return
     if (!document.fullscreenElement) {
-      containerRef.current.requestFullscreen().catch((err) => {
-        console.error("Fullscreen error:", err)
-        onError("Failed to enter fullscreen mode")
-      })
+      containerRef.current
+        .requestFullscreen()
+        .catch((err) => {
+          console.error("Fullscreen error:", err)
+          onError("Failed to enter fullscreen mode")
+        })
     } else {
       document.exitFullscreen().catch((err) => {
         console.error("Exit fullscreen error:", err)
@@ -64,20 +69,16 @@ export default function VideoCall({ interviewId, onError }: VideoCallProps) {
   const toggleMute = () => {
     if (userVideoRef.current && userVideoRef.current.srcObject) {
       const stream = userVideoRef.current.srcObject as MediaStream
-      stream.getAudioTracks().forEach((track) => {
-        track.enabled = !track.enabled
-      })
-      setIsMuted(!isMuted)
+      stream.getAudioTracks().forEach((track) => (track.enabled = !track.enabled))
+      setIsMuted((prev) => !prev)
     }
   }
 
   const toggleVideo = () => {
     if (userVideoRef.current && userVideoRef.current.srcObject) {
       const stream = userVideoRef.current.srcObject as MediaStream
-      stream.getVideoTracks().forEach((track) => {
-        track.enabled = !track.enabled
-      })
-      setIsVideoOn(!isVideoOn)
+      stream.getVideoTracks().forEach((track) => (track.enabled = !track.enabled))
+      setIsVideoOn((prev) => !prev)
     }
   }
 
@@ -112,7 +113,6 @@ export default function VideoCall({ interviewId, onError }: VideoCallProps) {
               playsInline
               className="w-full h-full object-contain"
             />
-            {/* Glass overlay on hover */}
             <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
             <div className="absolute bottom-6 left-6 backdrop-blur-glass bg-gradient-glass rounded-xl px-4 py-2 shadow-glass border border-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
               <span className="text-white text-sm font-medium">AI Interviewer</span>
@@ -135,7 +135,7 @@ export default function VideoCall({ interviewId, onError }: VideoCallProps) {
         )}
       </div>
 
-      {/* Floating small video - bottom right */}
+      {/* Small floating video */}
       <div
         className="absolute bottom-6 right-6 w-32 h-24 sm:w-40 sm:h-28 md:w-48 md:h-36 rounded-xl overflow-hidden shadow-elevated border-2 border-white/20 cursor-pointer hover:scale-105 hover:border-accent transition-all duration-300 animate-scale-in z-10"
         onClick={() => setMainVideo(mainVideo === "user" ? "interviewer" : "user")}
@@ -178,21 +178,15 @@ export default function VideoCall({ interviewId, onError }: VideoCallProps) {
         )}
       </div>
 
-      {/* Modern Control Bar - Bottom Center */}
-      <div
-        className="absolute bottom-6 left-1/2 transform -translate-x-1/2 z-20 animate-slide-up"
-        onMouseEnter={() => setIsHoveringControls(true)}
-        onMouseLeave={() => setIsHoveringControls(false)}
-      >
+      {/* Control bar */}
+      <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 z-20 animate-slide-up">
         <div className="backdrop-blur-glass bg-gradient-glass rounded-2xl px-4 py-3 shadow-elevated border border-white/10">
           <div className="flex items-center gap-3">
             {/* Mute Button */}
             <button
               onClick={toggleMute}
               className={`p-3 rounded-xl transition-all duration-300 ${
-                isMuted
-                  ? "bg-destructive hover:bg-destructive/90"
-                  : "bg-white/10 hover:bg-white/20"
+                isMuted ? "bg-destructive hover:bg-destructive/90" : "bg-white/10 hover:bg-white/20"
               }`}
               title={isMuted ? "Unmute" : "Mute"}
             >
@@ -207,9 +201,7 @@ export default function VideoCall({ interviewId, onError }: VideoCallProps) {
             <button
               onClick={toggleVideo}
               className={`p-3 rounded-xl transition-all duration-300 ${
-                !isVideoOn
-                  ? "bg-destructive hover:bg-destructive/90"
-                  : "bg-white/10 hover:bg-white/20"
+                !isVideoOn ? "bg-destructive hover:bg-destructive/90" : "bg-white/10 hover:bg-white/20"
               }`}
               title={isVideoOn ? "Turn off camera" : "Turn on camera"}
             >
@@ -236,7 +228,7 @@ export default function VideoCall({ interviewId, onError }: VideoCallProps) {
         </div>
       </div>
 
-      {/* Gradient overlays for depth */}
+      {/* Gradient overlays */}
       <div className="absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-black/30 to-transparent pointer-events-none" />
       <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-black/30 to-transparent pointer-events-none" />
     </div>

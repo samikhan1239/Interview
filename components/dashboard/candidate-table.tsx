@@ -6,20 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Input } from "@/components/ui/input"
 
-type Candidate = {
-  id: string
-  name: string
-  email: string
-  scores?: {
-    total?: number
-    breakdown?: {
-      easy?: number
-      medium?: number
-      hard?: number
-    }
-  }
-  createdAt: number
-}
+
 
 type Row = {
   id: string
@@ -37,7 +24,7 @@ export function CandidateTable() {
   const [rows, setRows] = useState<Row[]>([])
 
   useEffect(() => {
-    const list: Candidate[] = loadCandidates()
+    const list = loadCandidates()
     const mapped: Row[] = list.map((c) => ({
       id: c.id,
       name: c.name,
@@ -46,7 +33,7 @@ export function CandidateTable() {
       easy: c.scores?.breakdown?.easy ?? 0,
       medium: c.scores?.breakdown?.medium ?? 0,
       hard: c.scores?.breakdown?.hard ?? 0,
-      createdAt: c.createdAt,
+      createdAt: typeof c.createdAt === 'string' ? Date.parse(c.createdAt) : c.createdAt,
     }))
     setRows(mapped.sort((a, b) => b.total - a.total))
   }, [])

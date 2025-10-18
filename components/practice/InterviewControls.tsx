@@ -36,9 +36,14 @@ export default function InterviewControls({
 
       if (e.key === " " || e.code === "Space") {
         e.preventDefault()
-        if (!isSpeaking && interview?.status !== "completed") {
-          isPaused ? onResume() : onPause()
-        }
+       if (!isSpeaking && interview?.status !== "completed") {
+  if (isPaused) {
+    onResume()
+  } else {
+    onPause()
+  }
+}
+
       }
       if (e.key === "Enter") {
         e.preventDefault()

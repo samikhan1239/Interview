@@ -114,7 +114,7 @@ export const interviewDB = {
 
   create: (candidateId: string): Interview => {
     const interviews = interviewDB.getAll()
-    const now = new Date().toISOString()
+
     const newInterview: Interview = {
       id: Date.now().toString(),
       candidateId,
@@ -123,8 +123,8 @@ export const interviewDB = {
       totalScore: 0,
       status: "not-started",
       chatHistory: [],
-      createdAt: now,
-      updatedAt: now,
+    
+    
     }
     interviews.push(newInterview)
     localStorage.setItem(STORAGE_KEYS.INTERVIEWS, JSON.stringify(interviews))
@@ -139,7 +139,7 @@ export const interviewDB = {
     interviews[index] = {
       ...interviews[index],
       ...updates,
-      updatedAt: new Date().toISOString(),
+   
     }
     localStorage.setItem(STORAGE_KEYS.INTERVIEWS, JSON.stringify(interviews))
     return interviews[index]

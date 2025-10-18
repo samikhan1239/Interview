@@ -1,7 +1,7 @@
 import type { User } from "@/models/User"
 import { generateQuestions } from "@/lib/ai"
-import type { Candidate, CandidateProfile } from "@/models/Candidate"
-import type { Interview, Question, ChatMessage } from "@/models/Interview"
+import type { Candidate } from "@/models/Candidate"
+import type { Interview,} from "@/models/Interview"
 
 const STORAGE_KEYS = {
   AUTH: "interview_assistant_auth",
@@ -218,8 +218,8 @@ export const interviewDB = {
     const newInterview: Interview = {
       ...interview,
       id: generateId(),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      
+    
     }
     interviews.push(newInterview)
     localStorage.setItem(STORAGE_KEYS.INTERVIEWS, JSON.stringify(interviews))
@@ -234,7 +234,7 @@ export const interviewDB = {
     interviews[index] = {
       ...interviews[index],
       ...updates,
-      updatedAt: new Date().toISOString(),
+    
     }
     localStorage.setItem(STORAGE_KEYS.INTERVIEWS, JSON.stringify(interviews))
     return interviews[index]

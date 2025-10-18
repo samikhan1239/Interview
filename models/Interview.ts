@@ -1,4 +1,4 @@
-export type InterviewStatus = "pending" | "in-progress" | "paused" | "completed"
+export type InterviewStatus = "pending" | "in-progress" | "paused" | "completed"| "not-started"
 
 export interface Question {
   id: string
@@ -34,7 +34,8 @@ export interface Interview {
   totalScore: number
   status: InterviewStatus
   chatHistory: ChatMessage[]
-  startedAt: string
+
   pausedAt?: string
   completedAt?: string
+
 }

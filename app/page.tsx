@@ -1,4 +1,4 @@
-import { BrandHeader } from "@/components/brand-header"
+
 import { Hero } from "@/components/landing/hero"
 import { PreviewTabs } from "@/components/landing/preview-tabs"
 import { FeatureCards } from "@/components/landing/feature-cards"

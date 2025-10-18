@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label"
 import { authDB, candidateDB, interviewDB, generateId, loadInterviewState, saveInterviewState } from "@/lib/storage"
 import { generateQuestions } from "@/lib/ai"
-import { Interview, ChatMessage, Question } from "@/models/Interview"
+import { Interview, ChatMessage } from "@/models/Interview"
 import { Candidate } from "@/models/Candidate"
 import { ResumeUpload } from "@/components/resume-upload"
 import { ScrollProgress } from "@/components/ui/scroll-progress"
@@ -27,7 +27,7 @@ const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" })
 
 export default function InterviewPage() {
   const router = useRouter()
-  const [candidate, setCandidate] = useState<Candidate | null>(null)
+  const [, setCandidate] = useState<Candidate | null>(null)
   const [interview, setInterview] = useState<Interview | null>(null)
   const [currentQuestion, setCurrentQuestion] = useState<string>("")
   const [answer, setAnswer] = useState<string>("")
@@ -44,7 +44,7 @@ export default function InterviewPage() {
     rawText: "",
   })
   const [started, setStarted] = useState<boolean>(false)
-  const [recordedChunks, setRecordedChunks] = useState<Blob[]>([])
+  const [, setRecordedChunks] = useState<Blob[]>([])
 
   useEffect(() => {
     // Check if user is authenticated
@@ -53,7 +53,7 @@ export default function InterviewPage() {
       router.push("/login")
       return
     }
-
+    
     // Load candidate and interview
     const candidateData = candidateDB.getById(user.id)
     if (candidateData) {
@@ -146,7 +146,7 @@ export default function InterviewPage() {
         questions,
         currentQuestionIndex: 0,
         totalScore: 0,
-        status: "not-started",
+        status: "pending",
         chatHistory: [],
       }
       const createdInterview = interviewDB.create(newInterview)
@@ -183,7 +183,7 @@ export default function InterviewPage() {
     }
     interviewDB.update(interview.id, {
       status: "in-progress",
-      startedAt: new Date().toISOString(),
+    
     })
     candidateDB.update(interview.candidateId, { status: "in-progress" })
     setStarted(true)
@@ -250,7 +250,7 @@ export default function InterviewPage() {
       ...updatedQuestions[interview.currentQuestionIndex],
       answer,
       score,
-      aiResponse,
+     
       answeredAt: new Date().toISOString(),
     }
 

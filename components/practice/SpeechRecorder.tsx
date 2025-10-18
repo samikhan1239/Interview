@@ -1,11 +1,10 @@
-
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Mic, StopCircle } from "lucide-react"
 
-// Extend Window interface for SpeechRecognition
+// ---- Type Definitions ----
 interface SpeechRecognition extends EventTarget {
   continuous: boolean
   interimResults: boolean
@@ -18,7 +17,6 @@ interface SpeechRecognition extends EventTarget {
   onend: (() => void) | null
 }
 
-// Define SpeechRecognitionEvent and related types
 interface SpeechRecognitionEvent extends Event {
   results: SpeechRecognitionResultList
 }
@@ -46,6 +44,7 @@ declare global {
   interface Window {
     SpeechRecognition: new () => SpeechRecognition
     webkitSpeechRecognition: new () => SpeechRecognition
+    webkitAudioContext?: typeof AudioContext
   }
 }
 
@@ -58,8 +57,11 @@ interface SpeechRecorderProps {
   onRecordingStop: (chunks: Blob[]) => void
 }
 
-// Use SpeechRecognition or webkitSpeechRecognition
-const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
+// ---- Main Component ----
+const SpeechRecognitionAPI =
+  typeof window !== "undefined"
+    ? window.SpeechRecognition || window.webkitSpeechRecognition
+    : null
 
 export default function SpeechRecorder({
   isPaused,
@@ -69,29 +71,31 @@ export default function SpeechRecorder({
   setError,
   onRecordingStop,
 }: SpeechRecorderProps) {
-  const [isTranscribing, setIsTranscribing] = useState<boolean>(false)
+  const [isTranscribing, setIsTranscribing] = useState(false)
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null)
   const recognitionRef = useRef<SpeechRecognition | null>(null)
   const chunksRef = useRef<Blob[]>([])
-  const [includeCamera, setIncludeCamera] = useState<boolean>(true)
-  const [autoSave, setAutoSave] = useState<boolean>(false) // Disabled by default
-  const [elapsedSec, setElapsedSec] = useState<number>(0)
-  const [volume, setVolume] = useState<number>(0)
+  const [includeCamera, setIncludeCamera] = useState(true)
+  const [autoSave, setAutoSave] = useState(false)
+  const [elapsedSec, setElapsedSec] = useState(0)
+  const [volume, setVolume] = useState(0)
 
   const audioContextRef = useRef<AudioContext | null>(null)
   const analyserRef = useRef<AnalyserNode | null>(null)
   const rafRef = useRef<number | null>(null)
   const timerRef = useRef<number | null>(null)
 
-  // Initialize or reinitialize SpeechRecognition
-  const initializeRecognition = () => {
-    if (!SpeechRecognition) {
-      setError("Speech recognition is not supported in this browser. Please type your answer or use Chrome/Edge.")
+  // ---- Initialize Speech Recognition ----
+  const initializeRecognition = useCallback(() => {
+    if (!SpeechRecognitionAPI) {
+      setError(
+        "Speech recognition is not supported in this browser. Please use Chrome or Edge."
+      )
       console.warn("SpeechRecognition not available. Browser:", navigator.userAgent)
       return null
     }
 
-    const recognition = new SpeechRecognition()
+    const recognition = new SpeechRecognitionAPI()
     recognition.continuous = true
     recognition.interimResults = true
     recognition.lang = "en-US"
@@ -103,7 +107,6 @@ export default function SpeechRecorder({
     }
 
     recognition.onresult = (event: SpeechRecognitionEvent) => {
-      console.log("Speech recognition result:", JSON.stringify(event.results, null, 2))
       const transcript = Array.from(event.results)
         .map((result: SpeechRecognitionResult) => result[0].transcript)
         .join("")
@@ -119,10 +122,10 @@ export default function SpeechRecorder({
           setError("No speech detected. Please speak clearly or check your microphone.")
           break
         case "audio-capture":
-          setError("Microphone access denied or unavailable. Please allow microphone permissions.")
+          setError("Microphone access denied or unavailable.")
           break
         case "not-allowed":
-          setError("Microphone permission denied. Please allow microphone access in browser settings.")
+          setError("Microphone permission denied. Please allow microphone access.")
           break
         default:
           setError(`Speech recognition error: ${event.error}`)
@@ -133,7 +136,6 @@ export default function SpeechRecorder({
       console.log("Speech recognition ended")
       setIsTranscribing(false)
       if (isRecording && !isPaused && recognitionRef.current) {
-        console.log("Restarting speech recognition")
         try {
           recognitionRef.current.start()
         } catch (err) {
@@ -144,57 +146,67 @@ export default function SpeechRecorder({
     }
 
     return recognition
-  }
+  }, [setAnswer, setError, isRecording, isPaused])
 
+  // ---- Setup Recognition on Mount ----
   useEffect(() => {
     recognitionRef.current = initializeRecognition()
     return () => {
       recognitionRef.current?.stop()
       console.log("Speech recognition cleanup")
     }
-  }, [setAnswer, setError])
+  }, [initializeRecognition])
 
+  // ---- Stop Recording Cleanup ----
   useEffect(() => {
     if (!isRecording && (mediaRecorder?.state === "recording" || isTranscribing)) {
       mediaRecorder?.stop()
       recognitionRef.current?.stop()
       setMediaRecorder(null)
       setIsTranscribing(false)
-      setAnswer("") // Clear answer when stopping recording
-      recognitionRef.current = initializeRecognition() // Reinitialize recognition
+      setAnswer("")
+      recognitionRef.current = initializeRecognition()
     }
-  }, [isRecording, mediaRecorder, isTranscribing, setAnswer, setError])
+  }, [isRecording, mediaRecorder, isTranscribing, setAnswer, initializeRecognition])
 
+  // ---- Permissions ----
   const requestPermissions = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: includeCamera })
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: includeCamera,
+      })
       stream.getTracks().forEach((track) => track.stop())
       return true
     } catch (err) {
       console.error("Permission error:", err)
-      setError("Microphone and camera permissions are required")
+      setError("Microphone and camera permissions are required.")
       return false
     }
   }
 
+  // ---- Cleanup ----
   const cleanupAudioAndTimers = () => {
     if (rafRef.current) cancelAnimationFrame(rafRef.current)
     rafRef.current = null
-    if (timerRef.current) window.clearInterval(timerRef.current)
+    if (timerRef.current) clearInterval(timerRef.current)
     timerRef.current = null
     setElapsedSec(0)
     analyserRef.current = null
     if (audioContextRef.current) {
       try {
         audioContextRef.current.close()
-      } catch {}
+      } catch {
+        /* ignore */
+      }
     }
     audioContextRef.current = null
   }
 
+  // ---- Toggle Recording ----
   const toggleRecording = async () => {
     if (mediaRecorder?.state === "recording") {
-      setIsRecording(false) // Will trigger useEffect to stop recording
+      setIsRecording(false)
       return
     }
 
@@ -215,8 +227,10 @@ export default function SpeechRecorder({
       const recorder = new MediaRecorder(stream)
       chunksRef.current = []
 
-      // Start audio analysis for a realistic VU meter
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
+      // ---- Audio visualization ----
+      const AudioContextClass =
+        window.AudioContext || window.webkitAudioContext!
+      const audioContext = new AudioContextClass()
       audioContextRef.current = audioContext
       const source = audioContext.createMediaStreamSource(stream)
       const analyser = audioContext.createAnalyser()
@@ -224,6 +238,7 @@ export default function SpeechRecorder({
       analyserRef.current = analyser
       source.connect(analyser)
       const dataArray = new Uint8Array(analyser.frequencyBinCount)
+
       const loop = () => {
         analyser.getByteTimeDomainData(dataArray)
         let sum = 0
@@ -237,16 +252,14 @@ export default function SpeechRecorder({
       }
       rafRef.current = requestAnimationFrame(loop)
 
-      // Elapsed timer
+      // ---- Timer ----
       const startedAt = Date.now()
       timerRef.current = window.setInterval(() => {
         setElapsedSec(Math.floor((Date.now() - startedAt) / 1000))
       }, 1000)
 
       recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) {
-          chunksRef.current.push(e.data)
-        }
+        if (e.data.size > 0) chunksRef.current.push(e.data)
       }
 
       recorder.onstop = () => {
@@ -261,22 +274,26 @@ export default function SpeechRecorder({
       recorder.start()
       setMediaRecorder(recorder)
       setIsRecording(true)
-      setAnswer("") // Clear answer when starting new recording
+      setAnswer("")
+
       if (recognitionRef.current) {
         try {
           recognitionRef.current.start()
           console.log("Starting speech recognition")
         } catch (err) {
           console.error("Failed to start speech recognition:", err)
-          setError("Failed to start speech recognition: Please check microphone permissions")
+          setError(
+            "Failed to start speech recognition: Please check microphone permissions."
+          )
         }
       }
     } catch (err) {
       console.error("Recording error:", err)
-      setError("Failed to start recording: Microphone or camera access denied")
+      setError("Failed to start recording: Microphone or camera access denied.")
     }
   }
 
+  // ---- Format Timer ----
   const formatTime = (total: number) => {
     const m = Math.floor(total / 60)
       .toString()
@@ -287,6 +304,7 @@ export default function SpeechRecorder({
     return `${m}:${s}`
   }
 
+  // ---- UI ----
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center gap-2">
@@ -309,7 +327,9 @@ export default function SpeechRecorder({
           aria-live="polite"
         >
           <span
-            className={`h-2 w-2 rounded-full ${isRecording ? "bg-primary" : "bg-muted-foreground/50"}`}
+            className={`h-2 w-2 rounded-full ${
+              isRecording ? "bg-primary" : "bg-muted-foreground/50"
+            }`}
           />
           <span className="text-xs text-muted-foreground">
             {isRecording ? `Recording • ${formatTime(elapsedSec)}` : "Idle"}
@@ -317,7 +337,7 @@ export default function SpeechRecorder({
         </div>
 
         {/* VU meter */}
-        {isRecording ? (
+        {isRecording && (
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground">Level</span>
             <div className="h-2 w-28 rounded bg-muted/60 overflow-hidden">
@@ -328,7 +348,7 @@ export default function SpeechRecorder({
               />
             </div>
           </div>
-        ) : null}
+        )}
       </div>
 
       {/* Options */}

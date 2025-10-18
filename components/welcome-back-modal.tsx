@@ -16,7 +16,7 @@ export function WelcomeBackModal() {
   const [open, setOpen] = useState(false)
 
   useEffect(() => {
-    const state = loadInterviewState()
+    const state = loadInterviewState("")
     setOpen(!!state && state.step === "in-progress")
   }, [])
 

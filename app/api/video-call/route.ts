@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
 
-// In-memory store for signaling data (replace with a database or signaling server in production)
-const signalingData: Record<string, { answer?: any; candidates: any[] }> = {}
+// Define a type for signaling data (type-safe)
+interface SignalingInfo {
+  answer?: RTCSessionDescriptionInit
+  candidates: RTCIceCandidateInit[]
+}
+
+// In-memory store for signaling data
+const signalingData: Record<string, SignalingInfo> = {}
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
@@ -17,7 +23,12 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json()
+    const body = await req.json() as {
+      interviewId: string
+      type: "answer" | "candidate"
+      data: RTCSessionDescriptionInit | RTCIceCandidateInit
+    }
+
     const { interviewId, type, data } = body
 
     if (!interviewId || !type || !data) {
@@ -25,17 +36,17 @@ export async function POST(req: NextRequest) {
     }
 
     if (!signalingData[interviewId]) {
-      signalingData[interviewId] = { answer: null, candidates: [] }
+      signalingData[interviewId] = { candidates: [] }
     }
 
     if (type === "answer") {
-      signalingData[interviewId].answer = data
+      signalingData[interviewId].answer = data as RTCSessionDescriptionInit
     } else if (type === "candidate") {
-      signalingData[interviewId].candidates.push(data)
+      signalingData[interviewId].candidates.push(data as RTCIceCandidateInit)
     }
 
-    // Simulate AI response (in a real app, this would come from an external WebRTC peer)
-    const responseData = { type: "answer", data: { sdp: "mock-sdp-response" } } // Placeholder
+    // Simulate AI response (placeholder)
+    const responseData = { type: "answer", data: { sdp: "mock-sdp-response" } }
     return NextResponse.json(responseData)
   } catch (error) {
     console.error("Error processing POST request:", error)

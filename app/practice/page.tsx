@@ -21,7 +21,7 @@ interface CustomQuestion {
 
 export default function PracticePage() {
   const router = useRouter()
-  const [candidate, setCandidate] = useState<Candidate | null>(null)
+  const [, setCandidate] = useState<Candidate | null>(null)
   const [interview, setInterview] = useState<Interview | null>(null)
   const [currentQuestion, setCurrentQuestion] = useState<string>("")
   const [answer, setAnswer] = useState<string>("")
@@ -33,7 +33,7 @@ export default function PracticePage() {
   const [started, setStarted] = useState<boolean>(false)
   const [customQuestions, setCustomQuestions] = useState<CustomQuestion[]>([])
   const [summary, setSummary] = useState<string>("")
-  const [recordedChunks, setRecordedChunks] = useState<Blob[]>([])
+  const [, setRecordedChunks] = useState<Blob[]>([])
 
   useEffect(() => {
     const user = authDB.getCurrentUser()
@@ -60,22 +60,7 @@ export default function PracticePage() {
     window.speechSynthesis.speak(utterance)
   }
 
-  const generateSummary = async (answer: string) => {
-    const prompt = `Generate a concise summary of the following answer: "${answer}". The summary should be 2-3 sentences.`;
-    try {
-      const genAI = new (await import("@google/generative-ai")).GoogleGenerativeAI(
-        process.env.GOOGLE_AI_API_KEY || "AIzaSyAnNRnbzEInFMjAwMiPDiAJnXB-T0bGmzI"
-      )
-      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" })
-      const result = await model.generateContent(prompt)
-      const response = await result.response
-      return response.text()
-    } catch (error) {
-      console.error("Error generating summary:", error)
-      return "Unable to generate summary due to an error."
-    }
-  }
-
+ 
   const handleStart = async () => {
     if (customQuestions.length === 0) {
       setError("Add at least one question to start practice.")
@@ -100,7 +85,7 @@ export default function PracticePage() {
       totalScore: 0,
       status: "in-progress",
       chatHistory: [],
-      startedAt: new Date().toISOString(),
+   
     })
 
     setInterview(newInterview)
