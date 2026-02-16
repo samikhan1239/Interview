@@ -23,7 +23,7 @@ export function Hero() {
           </p>
           <div className="flex flex-wrap gap-3">
             <Button asChild size="lg">
-              <Link href="/interview">Start Interview</Link>
+              <Link href="/interview/analysis">Start Interview</Link>
             </Button>
             <Button asChild size="lg" variant="outline">
               <Link href="/practice">Practice</Link>

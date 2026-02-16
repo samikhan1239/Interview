@@ -1,110 +1,236 @@
-import { GoogleGenerativeAI, GenerateContentResult } from "@google/generative-ai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
-// ✅ Initialize Gemini Model (2.0 Flash Experimental)
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "AIzaSyAnNRnbzEInFMjAwMiPDiAJnXB-T0bGmzI");
-const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
+const genAI = new GoogleGenerativeAI(
+  process.env.GOOGLE_AI_API_KEY ||
+    "AIzaSyAnNRnbzEInFMjAwMiPDiAJnXB-T0bGmzI"
+);
 
-/**
- * Corrects and summarizes a candidate's interview answer using Google Gemini.
- * Returns a structured object with { correction, summary }.
- */
+const model = genAI.getGenerativeModel({
+  model: "gemini-2.0-flash-exp",
+});
+
+export type Difficulty = "easy" | "medium" | "hard";
+
+export type Question = {
+  id: string;
+  difficulty: Difficulty;
+  prompt: string;
+  seconds: number;
+};
+
+const durations: Record<Difficulty, number> = {
+  easy: 30,
+  medium: 60,
+  hard: 120,
+};
+
+/* =========================================================
+   🔧 CLEAN JSON SAFELY
+========================================================= */
+function cleanJSON(text: string) {
+  return text
+    .replace(/```json/gi, "")
+    .replace(/```/g, "")
+    .trim();
+}
+
+function safeParse(text: string) {
+  try {
+    return JSON.parse(cleanJSON(text));
+  } catch {
+    return null;
+  }
+}
+
+/* =========================================================
+   ✅ ROLE-BASED QUESTION GENERATION
+========================================================= */
+export async function generatePracticeQuestions(
+  role: string
+): Promise<Question[]> {
+  const prompt = `
+You are a senior technical interviewer.
+
+Generate interview questions STRICTLY for this role:
+"${role}"
+
+Rules:
+- Questions must match the role exactly.
+- No unrelated technologies.
+- Only include system design in HARD level.
+
+Generate:
+2 easy
+2 medium
+2 hard
+
+Return ONLY JSON:
+
+{
+  "easy": ["q1", "q2"],
+  "medium": ["q1", "q2"],
+  "hard": ["q1", "q2"]
+}
+`;
+
+  try {
+    const result = await model.generateContent(prompt);
+    const parsed = safeParse(result.response.text());
+
+    if (!parsed) throw new Error("Invalid JSON");
+
+    const output: Question[] = [];
+
+    (["easy", "medium", "hard"] as Difficulty[]).forEach((diff) => {
+      const questions = parsed[diff] || [];
+
+      for (let i = 0; i < 2; i++) {
+        output.push({
+          id: `${diff}-${i}`,
+          difficulty: diff,
+          prompt: questions[i] || `Sample ${diff} question for ${role}`,
+          seconds: durations[diff],
+        });
+      }
+    });
+
+    return output;
+  } catch (error) {
+    console.error("❌ Question generation failed:", error);
+
+    return [
+      {
+        id: "fallback-e",
+        difficulty: "easy",
+        prompt: `Explain core concepts of ${role}.`,
+        seconds: 30,
+      },
+      {
+        id: "fallback-m",
+        difficulty: "medium",
+        prompt: `How would you implement a real feature as a ${role}?`,
+        seconds: 60,
+      },
+      {
+        id: "fallback-h",
+        difficulty: "hard",
+        prompt: `How would you design a scalable architecture as a ${role}?`,
+        seconds: 120,
+      },
+    ];
+  }
+}
+
+/* =========================================================
+   ✅ AI EVALUATION (STRICT + ROLE AWARE)
+========================================================= */
+export async function evaluateAndCorrectAnswer(
+  role: string,
+  question: string,
+  answer: string
+): Promise<{
+  score: number;
+  correction: string;
+  feedback: string;
+}> {
+  const prompt = `
+You are a strict senior technical interviewer.
+
+Role: ${role}
+
+Question:
+"${question}"
+
+Candidate Answer:
+"${answer}"
+
+Evaluate based on:
+- Technical accuracy
+- Depth of explanation
+- Real-world applicability
+- Clarity & structure
+
+Scoring Guide:
+90-100 → Excellent
+70-89 → Good but minor gaps
+40-69 → Partial understanding
+0-39 → Weak or incorrect
+
+Return ONLY JSON:
+
+{
+  "score": number (0-100),
+  "correction": "improved professional answer",
+  "feedback": "short explanation of evaluation"
+}
+`;
+
+  try {
+    const result = await model.generateContent(prompt);
+    const parsed = safeParse(result.response.text());
+
+    if (!parsed) throw new Error("Invalid JSON");
+
+    const score = Math.min(100, Math.max(0, Number(parsed.score) || 0));
+
+    return {
+      score,
+      correction: parsed.correction || answer,
+      feedback: parsed.feedback || "No feedback generated.",
+    };
+  } catch (error) {
+    console.error("❌ Evaluation failed:", error);
+
+    return {
+      score: 50,
+      correction: answer,
+      feedback: "AI evaluation failed. Default score applied.",
+    };
+  }
+}
+
+/* =========================================================
+   ✅ CORRECT + SUMMARIZE
+========================================================= */
 export async function correctAndSummarizeAnswer(
   question: string,
   answer: string
 ): Promise<{ correction: string; summary: string }> {
-  // Warn if API key missing
-  if (!process.env.GOOGLE_AI_API_KEY) {
-    console.warn(
-      "⚠️ Missing GOOGLE_AI_API_KEY. Please set it in your environment variables."
-    );
-  } else {
-    console.log(
-      `🔐 Using Google API key prefix: ${process.env.GOOGLE_AI_API_KEY.substring(0, 8)}...`
-    );
-  }
-
   const prompt = `
-You are an AI assistant using Google Gemini tasked with correcting a candidate's interview answer to make it clear, professional, and complete.
+Improve and polish this answer professionally.
 
-Question: "${question}"
-Candidate's Answer: "${answer}"
+Question:
+"${question}"
 
-Instructions:
-- Preserve the candidate's original intent and key details.
-- Fix grammar, spelling, and clarity issues.
-- If the answer is incomplete or vague, enhance it with relevant, professional details.
-- For technical questions: include correct, concise explanations or examples if relevant.
-- For behavioral questions: structure the response professionally (e.g., background, skills, experience).
-- For situational questions: use a clear structure (situation, action, outcome).
-- Respond strictly in JSON format as:
+Answer:
+"${answer}"
+
+Return ONLY JSON:
+
 {
-  "correction": "string",
-  "summary": "string"
+  "correction": "improved answer",
+  "summary": "short professional summary"
 }
-Where:
-- "correction" = polished and corrected version of the answer.
-- "summary" = short note (e.g. "The answer has been corrected for clarity and professionalism.")
 `;
 
-  const maxRetries = 3;
+  try {
+    const result = await model.generateContent(prompt);
+    const parsed = safeParse(result.response.text());
 
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      console.log(`🧠 Attempt ${attempt}: Sending request to Gemini...`);
+    if (!parsed) throw new Error("Invalid JSON");
 
-      const result = await Promise.race([
-        model.generateContent(prompt) as Promise<GenerateContentResult>,
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("⏰ Gemini API timeout")), 10000)
-        ),
-      ]);
+    return {
+      correction: parsed.correction || answer,
+      summary:
+        parsed.summary ||
+        "Answer improved for clarity and professionalism.",
+    };
+  } catch (error) {
+    console.error("❌ Correction failed:", error);
 
-      const text = result.response.text();
-      console.log(`📦 Gemini Raw Response (Attempt ${attempt}): ${text}`);
-
-      // 🧹 Clean text (remove ```json and ``` wrappers)
-      const cleanText = text.replace(/```json|```/g, "").trim();
-
-      // 🧩 Try parsing JSON output
-      const parsed = JSON.parse(cleanText);
-      if (parsed?.correction) {
-        console.log(`✅ Successfully parsed correction: ${parsed.correction}`);
-        return {
-          correction: parsed.correction.trim(),
-          summary: parsed.summary?.trim() || "The answer has been corrected for clarity and professionalism.",
-        };
-      }
-
-      console.warn(`⚠️ Missing 'correction' field in parsed response, retrying...`);
-    } catch (err) {
-      console.error(`❌ Attempt ${attempt} failed:`, err);
-    }
+    return {
+      correction: answer,
+      summary: "Correction failed. Original answer retained.",
+    };
   }
-
-  // 🧭 Fallback – Only if Gemini fails all attempts
-  console.log(`🚨 All ${maxRetries} attempts failed. Using fallback logic.`);
-
-  let fallbackCorrection = answer.trim();
-  if (fallbackCorrection) {
-    fallbackCorrection =
-      fallbackCorrection.charAt(0).toUpperCase() + fallbackCorrection.slice(1);
-    if (!/[.!?]$/.test(fallbackCorrection)) fallbackCorrection += ".";
-
-    if (
-      question.toLowerCase().includes("tell me about yourself") ||
-      question.toLowerCase().includes("introduce yourself")
-    ) {
-      fallbackCorrection = `Hello, my name is Sami Khan, and I am a full-stack developer passionate about building scalable and user-friendly web applications.`;
-    } else {
-      fallbackCorrection +=
-        " This response has been refined for clarity and professionalism.";
-    }
-  } else {
-    fallbackCorrection = `A clear, professional response could not be generated. Please provide more details.`;
-  }
-
-  return {
-    correction: fallbackCorrection,
-    summary: "The answer has been corrected for clarity and professionalism.",
-  };
 }

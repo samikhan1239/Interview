@@ -60,6 +60,70 @@ async function generateQuestionsWithAI(seed: string): Promise<Question[]> {
     return generateFallbackQuestions(seed);
   }
 }
+async function generatePracticeQuestionsWithAI(
+  role: string,
+  topic: string
+): Promise<Question[]> {
+
+  const systemPrompt = `
+  You are an expert technical interviewer.
+
+  Generate interview questions for the role: "${role}"
+
+  Focus specifically on this topic: "${topic}"
+
+  Generate exactly 2 unique questions per difficulty level:
+  - easy (basic concept understanding)
+  - medium (implementation or applied knowledge)
+  - hard (advanced design, optimization, or scalability)
+
+  Respond ONLY in JSON format:
+
+  {
+    "easy": ["question1", "question2"],
+    "medium": ["question1", "question2"],
+    "hard": ["question1", "question2"]
+  }
+
+  Do not add any extra explanation.
+  `;
+
+  try {
+    const result = await model.generateContent(systemPrompt);
+    const response = await result.response;
+    const text = response.text();
+    const parsed = JSON.parse(text);
+
+    const out: Question[] = [];
+
+    (["easy", "medium", "hard"] as Difficulty[]).forEach((diff) => {
+      const questions = parsed[diff] || [];
+
+      for (let i = 0; i < 2; i++) {
+        const prompt =
+          questions[i] || `Sample ${diff} question ${i + 1} on ${topic}`;
+
+        out.push({
+          id: `${diff[0]}${i}`,
+          difficulty: diff,
+          prompt,
+          seconds: durations[diff],
+        });
+      }
+    });
+
+    return out;
+
+  } catch (error) {
+    console.error("Error generating practice questions:", error);
+
+    // fallback using combined seed
+    return generateFallbackQuestions(role + "-" + topic);
+  }
+}
+
+
+
 
 function generateFallbackQuestions(seed: string): Question[] {
   const banks: Record<Difficulty, string[]> = {
@@ -202,4 +266,11 @@ export async function evaluateAndCorrectAnswer(question: string, answer: string)
     correction: answer,
     feedback: "Unexpected error in evaluation process."
   };
+  
+}
+export async function generatePracticeQuestions(
+  role: string,
+  topic: string
+): Promise<Question[]> {
+  return await generatePracticeQuestionsWithAI(role, topic);
 }

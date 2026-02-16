@@ -39,7 +39,7 @@ export const QuestionCard = ({ question, index }: QuestionCardProps) => {
             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-bold">
               {index + 1}
             </span>
-            <span className="flex-1">{question.text}</span>
+            <span className="flex-1">{question.prompt}</span>
           </CardTitle>
           <div className="flex items-center gap-2">
             <Badge variant="outline" className={getDifficultyColor(question.difficulty)}>

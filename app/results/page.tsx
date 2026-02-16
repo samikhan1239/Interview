@@ -43,8 +43,20 @@ export default function ResultsPage() {
     )
   }
 
-  const averageScore = interview.totalScore
+
   const totalQuestions = interview.questions.length
+
+
+const totalScore = interview.questions.reduce(
+  (sum, q) => sum + (q.score || 0),
+  0
+)
+
+const averageScore =
+  totalQuestions > 0
+    ? Math.round(totalScore / totalQuestions)
+    : 0
+
 
 
 

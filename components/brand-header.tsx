@@ -27,7 +27,7 @@ export function BrandHeader() {
             <Link href="/practice">Practice</Link>
           </Button>
           <Button asChild>
-            <Link href="/interview">Start Interview</Link>
+            <Link href="/interview/analysis">Start Interview</Link>
           </Button>
         </div>
       </div>
