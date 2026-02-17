@@ -4,16 +4,7 @@ import { useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Upload, FileText, Award, Sparkles, X } from "lucide-react"
-import { cn } from "@/lib/utils"
-
-type ResumeResult = {
-  predicted_role?: string
-  recommended_job?: string
-  name?: string
-  email?: string
-  phone?: string
-  skills: string[]   // ✅ always array (never undefined)
-}
+import { cn } from "@/lib/utils" // assuming shadcn has this utility
 
 export default function AnalysisPage() {
   const router = useRouter()
@@ -21,7 +12,7 @@ export default function AnalysisPage() {
 
   const [file, setFile] = useState<File | null>(null)
   const [loading, setLoading] = useState(false)
-  const [result, setResult] = useState<ResumeResult | null>(null)
+  const [result, setResult] = useState<any>(null)
   const [error, setError] = useState<string | null>(null)
 
   const openFileDialog = () => {
@@ -52,24 +43,14 @@ export default function AnalysisPage() {
       })
 
       if (!res.ok) {
-        const errData = await res.json()
-        throw new Error(errData.error || "Analysis failed")
+        const err = await res.json()
+        throw new Error(err.error || "Analysis failed")
       }
 
-      const data: ResumeResult = await res.json()
-
-      // ✅ Ensure skills is always array
-      setResult({
-        ...data,
-        skills: data.skills ?? [],
-      })
-
-    } catch (err: unknown) {
-      if (err instanceof Error) {
-        setError(err.message)
-      } else {
-        setError("Something went wrong. Please try again.")
-      }
+      const data = await res.json()
+      setResult(data)
+    } catch (err: any) {
+      setError(err.message || "Something went wrong. Please try again.")
     } finally {
       setLoading(false)
     }
@@ -81,12 +62,20 @@ export default function AnalysisPage() {
     setError(null)
     if (fileInputRef.current) fileInputRef.current.value = ""
   }
+  type ResumeResult = {
+  predicted_role?: string
+  recommended_job?: string
+  name?: string
+  email?: string
+  phone?: string
+  skills?: string[]
+}
 
   return (
     <main className="min-h-screen bg-background">
       <div className="container max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10 md:py-16 lg:py-20">
         <div className="space-y-12">
-
+        
           {/* Header */}
           <div className="text-center space-y-4">
             <div className="inline-flex h-14 w-14 items-center justify-center rounded-xl bg-primary/10 mx-auto">
@@ -102,15 +91,14 @@ export default function AnalysisPage() {
 
           {!result ? (
             <div className="space-y-10 max-w-2xl mx-auto">
-
-              {/* Upload Area */}
+              {/* Upload area */}
               <div
                 className={cn(
                   "group relative rounded-2xl border-2 border-dashed transition-all duration-200",
                   "px-6 py-14 sm:px-12 sm:py-20 text-center",
                   file
                     ? "border-primary/40 bg-primary/5"
-                    : "border-border/70 hover:border-primary/40 hover:bg-muted/30 cursor-pointer"
+                    : "border-border/70 hover:border-primary/40 hover:bg-muted/30 cursor-pointer",
                 )}
                 onClick={!file ? openFileDialog : undefined}
               >
@@ -176,36 +164,38 @@ export default function AnalysisPage() {
                 )}
               </div>
 
-              {/* Buttons */}
-              <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-                <Button
-                  size="lg"
-                  className="min-w-[220px] h-12 text-base font-medium"
-                  onClick={handleUpload}
-                  disabled={loading || !file}
-                >
-                  {loading ? (
-                    <>
-                      <span className="mr-2.5 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                      Analyzing Resume...
-                    </>
-                  ) : (
-                    "Analyze Resume"
-                  )}
-                </Button>
+              {/* Analyze button */}
+             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+  {/* Analyze Button */}
+  <Button
+    size="lg"
+    className="min-w-[220px] h-12 text-base font-medium"
+    onClick={handleUpload}
+    disabled={loading || !file}
+  >
+    {loading ? (
+      <>
+        <span className="mr-2.5 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+        Analyzing Resume...
+      </>
+    ) : (
+      "Analyze Resume"
+    )}
+  </Button>
 
-                <Button
-                  size="lg"
-                  variant="outline"
-                  className="min-w-[220px] h-12"
-                  onClick={() =>
-                    window.open("https://resume-parsing-duky.onrender.com/", "_blank")
-                  }
-                >
-                  Open ML Server
-                </Button>
-              </div>
-
+  {/* Open ML Server Button */}
+  <Button
+    size="lg"
+    variant="outline"
+    className="min-w-[220px] h-12"
+    onClick={() =>
+      window.open("https://resume-parsing-duky.onrender.com/", "_blank")
+    }
+  >
+    Open ML Server
+  </Button>
+</div>
+ 
               {error && (
                 <p className="text-sm text-destructive text-center bg-destructive/5 py-3 px-5 rounded-lg border border-destructive/20 max-w-md mx-auto">
                   {error}
@@ -214,8 +204,7 @@ export default function AnalysisPage() {
             </div>
           ) : (
             <div className="space-y-14 max-w-3xl mx-auto">
-
-              {/* Predicted Role */}
+              {/* Main Result – Predicted Role */}
               <div className="text-center space-y-5 pb-8 border-b">
                 <div className="inline-flex items-center gap-2.5 text-primary">
                   <Award className="h-6 w-6" />
@@ -226,7 +215,52 @@ export default function AnalysisPage() {
                 <h2 className="text-4xl sm:text-5xl font-bold tracking-tight">
                   {result.predicted_role || "Not detected"}
                 </h2>
+
+                {result.recommended_job && result.recommended_job !== result.predicted_role && (
+                  <div className="mt-4">
+                    <p className="text-lg text-muted-foreground">
+                      Recommended Position
+                    </p>
+                    <p className="text-2xl font-semibold mt-1.5">
+                      {result.recommended_job}
+                    </p>
+                  </div>
+                )}
               </div>
+
+              {/* Personal Information – no boxes, clean layout */}
+              {(result.name || result.email || result.phone) && (
+                <div className="space-y-8">
+                  <h3 className="text-xl font-semibold text-center sm:text-left">
+                    Personal Information
+                  </h3>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 text-center sm:text-left">
+                    {result.name && (
+                      <div>
+                        <div className="text-sm text-muted-foreground">Name</div>
+                        <div className="mt-1.5 text-xl font-medium">{result.name}</div>
+                      </div>
+                    )}
+
+                    {result.email && (
+                      <div>
+                        <div className="text-sm text-muted-foreground">Email</div>
+                        <div className="mt-1.5 text-lg font-medium break-all">
+                          {result.email}
+                        </div>
+                      </div>
+                    )}
+
+                    {result.phone && (
+                      <div>
+                        <div className="text-sm text-muted-foreground">Phone</div>
+                        <div className="mt-1.5 text-xl font-medium">{result.phone}</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Skills */}
               <div className="space-y-6">
@@ -235,9 +269,9 @@ export default function AnalysisPage() {
                   <h3 className="text-xl font-semibold">Extracted Skills</h3>
                 </div>
 
-                {result.skills.length > 0 ? (
+                {result.skills?.length > 0 ? (
                   <div className="flex flex-wrap gap-2.5 justify-center sm:justify-start">
-                    {result.skills.map((skill, i) => (
+                    {result.skills.map((skill: string, i: number) => (
                       <div
                         key={i}
                         className="rounded-full bg-secondary/70 px-4 py-1.5 text-sm font-medium border border-border/40"
@@ -253,7 +287,7 @@ export default function AnalysisPage() {
                 )}
               </div>
 
-              {/* Buttons */}
+              {/* CTA Buttons */}
               <div className="flex flex-col sm:flex-row gap-4 justify-center pt-8">
                 <Button
                   size="lg"
@@ -278,14 +312,12 @@ export default function AnalysisPage() {
                   Analyze Another Resume
                 </Button>
               </div>
-
             </div>
           )}
 
           <p className="text-center text-sm text-muted-foreground pt-10">
             Powered by AI • Results are estimates • Max file size 5 MB
           </p>
-
         </div>
       </div>
     </main>
