@@ -5,7 +5,7 @@ export async function POST(req: Request) {
     const formData = await req.formData();
 
     const response = await fetch(
-"https://resume-parsing-duky.onrender.com/pred",
+"https://sami10902.pythonanywhere.com/pred",
 
       {
         method: "POST",
